@@ -33,9 +33,9 @@ if hasattr(sys, 'getandroidapilevel'):
 else:
     from nsz.ThreadSafeCounterSharedMemory import Counter
 
-def solidCompressTask(in_queue, statusReport, readyForWork, pleaseNoPrint, pleaseKillYourself, id, problemQueue):
+def solidCompressTask(in_queue, statusReport, readyForWork, pleaseNoPrint, pleaseKillYourself, id, problemQueue, keysPath):
 	if not Keys.keys_loaded:
-		Keys.load_default()
+		Keys.load_default(keysPath)
 	while True:
 		readyForWork.increment()
 		item = in_queue.get()
@@ -166,7 +166,7 @@ def main():
 		targetDictXcz = dict()
 
 		# Verify correct keys can be used
-		keys_loaded = Keys.load_default()
+		keys_loaded = Keys.load_default(args.keys)
 		if not keys_loaded:
 			raise Exception('Could not load keys file.')
 
@@ -242,7 +242,7 @@ def main():
 			# Start the compression tasks in parallel.
 			for i in range(parallelTasks):
 				statusReport.append([0, 0, 100, 'Compressing'])
-				p = Process(target=solidCompressTask, args=(work, statusReport, readyForWork, pleaseNoPrint, pleaseKillYourself, i, problems))
+				p = Process(target=solidCompressTask, args=(work, statusReport, readyForWork, pleaseNoPrint, pleaseKillYourself, i, problems, args.keys))
 				p.start()
 				pool.append(p)
 

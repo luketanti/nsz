@@ -205,17 +205,27 @@ def getLoadedKeysRevisions():
 def getIncorrectKeysRevisions():
 	return incorrect_keys_revisions
 
-def load_default():
+def load_default(customKeysPath = None):
 	keyScriptPath = Path(sys.argv[0])
 	#While loop to get rid of things like C:\\Python37\\Scripts\\nsz.exe\\__main__.py
 	while not keyScriptPath.is_dir():
 		keyScriptPath = keyScriptPath.parents[0]
-	keyfiles = [
-		keyScriptPath.joinpath('prod.keys'),
-		keyScriptPath.joinpath('keys.txt'),
-		Path.home().joinpath(".switch", "prod.keys"),
-		Path.home().joinpath(".switch", "keys.txt"),
-	]
+	if customKeysPath:
+		customPath = Path(customKeysPath).expanduser()
+		if customPath.is_dir():
+			keyfiles = [
+				customPath.joinpath('prod.keys'),
+				customPath.joinpath('keys.txt'),
+			]
+		else:
+			keyfiles = [customPath]
+	else:
+		keyfiles = [
+			keyScriptPath.joinpath('prod.keys'),
+			keyScriptPath.joinpath('keys.txt'),
+			Path.home().joinpath(".switch", "prod.keys"),
+			Path.home().joinpath(".switch", "keys.txt"),
+		]
 
 	keys_loaded = False
 	for kf in keyfiles:
@@ -231,6 +241,9 @@ def load_default():
 				errorMsg += "\nor "
 			errorMsg += f"{str(kf)}"
 		errorMsg += " not found\n\nPlease dump your keys using https://gbatemp.net/download/lockpick_rcm-1-9-15-fw-20-zoria.39129/\n"
-		errorMsg = "Failed to load default keys files:\n" + errorMsg
+		if customKeysPath:
+			errorMsg = "Failed to load keys file(s) from --keys:\n" + errorMsg
+		else:
+			errorMsg = "Failed to load default keys files:\n" + errorMsg
 		Print.error(703, errorMsg)
 	return keys_loaded
