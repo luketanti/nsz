@@ -90,10 +90,12 @@ def verify(filePath, fixPadding, raiseVerificationException, raisePfs0Exception,
 err = []
 
 machineReadableOutput = False
+minimalOutput = False
 
 def main():
 	global err
 	global machineReadableOutput
+	global minimalOutput
 
 	try:
 		if len(argv) > 1:
@@ -103,6 +105,8 @@ def main():
 			# Does the user want machine readable output?
 			if (args.machine_readable):
 				machineReadableOutput = True
+			if (args.minimal_output):
+				minimalOutput = True
 		else:
 			# There are no command line arguments so assume that the user wants to open the GUI.
 			kivyConfigPathObj = Path.home().joinpath('.kivy').joinpath('config.ini')
@@ -132,6 +136,13 @@ def main():
 		if args.quick_verify:
 			args.verify = True
 
+		if minimalOutput and machineReadableOutput:
+			Print.error(107, 'Error: --minimal-output and --machine-readable cannot be used together.')
+			return
+
+		if minimalOutput:
+			Print.enableInfo = False
+
 		if args.output:
 			argOutFolderToPharse = args.output
 			if not argOutFolderToPharse.endswith('/') and not argOutFolderToPharse.endswith('\\'):
@@ -152,7 +163,7 @@ def main():
 		Print.info('                `"\'')
 		Print.info('')
 
-		barManager = enlighten.get_manager()
+		barManager = None if (machineReadableOutput or minimalOutput) else enlighten.get_manager()
 		poolManager = Manager()
 		statusReport = poolManager.list()
 		readyForWork = Counter(poolManager, 0)
@@ -248,10 +259,11 @@ def main():
 
 			if machineReadableOutput == False:
 				# Create the progress bar(s).
-				for i in range(parallelTasks):
-					bar = barManager.counter(total=100, desc='Compressing', unit='MiB', color='cyan', bar_format=BAR_FMT)
-					compressedSubBars.append(bar.add_subcounter('green'))
-					bars.append(bar)
+				if not minimalOutput:
+					for i in range(parallelTasks):
+						bar = barManager.counter(total=100, desc='Compressing', unit='MiB', color='cyan', bar_format=BAR_FMT)
+						compressedSubBars.append(bar.add_subcounter('green'))
+						bars.append(bar)
 
 			#Ensures that all threads are started and compleaded before being requested to quit
 			while readyForWork.value() < parallelTasks:
@@ -264,14 +276,25 @@ def main():
 
 				# Show the progress bar only if the output is human readable.
 				if machineReadableOutput == False:
-					for i in range(parallelTasks):
-						compressedRead, compressedWritten, total, currentStep = statusReport[i]
-						if bars[i].total != total:
-							bars[i].total = total//1048576
-						bars[i].count = compressedRead//1048576
-						compressedSubBars[i].count = compressedWritten//1048576
-						bars[i].desc = currentStep
-						bars[i].refresh()
+					if minimalOutput:
+						totalRead = 0
+						totalSize = 0
+						currentStep = "Compressing"
+						for i in range(parallelTasks):
+							compressedRead, _compressedWritten, total, step = statusReport[i]
+							totalRead += compressedRead
+							totalSize += total
+							currentStep = step
+						Print.progress('Progress', {"sourceSize": totalSize, "processed": totalRead, "step": currentStep})
+					else:
+						for i in range(parallelTasks):
+							compressedRead, compressedWritten, total, currentStep = statusReport[i]
+							if bars[i].total != total:
+								bars[i].total = total//1048576
+							bars[i].count = compressedRead//1048576
+							compressedSubBars[i].count = compressedWritten//1048576
+							bars[i].desc = currentStep
+							bars[i].refresh()
 
 				pleaseNoPrint.decrement()
 			pleaseKillYourself.increment()
@@ -282,9 +305,12 @@ def main():
 				sleep(0.02)
 
 			if machineReadableOutput == False:
-				for i in range(parallelTasks):
-					bars[i].close(clear=True)
-				barManager.stop()
+				if minimalOutput:
+					Print.progress('Complete', {"filePath": ""})
+				else:
+					for i in range(parallelTasks):
+						bars[i].close(clear=True)
+					barManager.stop()
 
 			for filePath in sourceFileToDelete:
 				if argOutFolder:
